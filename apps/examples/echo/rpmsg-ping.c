@@ -28,6 +28,7 @@ static int err_cnt;
 static struct rpmsg_endpoint lept;
 static struct _payload *i_payload;
 static int rnum = 0;
+volatile int no_try = 0;
 static int err_cnt = 0;
 static int ept_deleted = 0;
 
@@ -105,6 +106,7 @@ int app (struct rpmsg_device *rdev, void *priv)
 	}
 	max_size -= sizeof(struct _payload);
 	num_payloads = max_size - PAYLOAD_MIN_SIZE + 1;
+	LPRINTF(" num_payloads = %d\r\n", num_payloads);
 	i_payload =
 	    (struct _payload *)metal_allocate_memory(2 * sizeof(unsigned long) +
 				      max_size);
@@ -139,6 +141,7 @@ int app (struct rpmsg_device *rdev, void *priv)
 			i_payload->num,
 			(unsigned long)(2 * sizeof(unsigned long)) + size);
 
+		usleep(1000000);
 		ret = rpmsg_send(&lept, i_payload,
 				 (2 * sizeof(unsigned long)) + size);
 
@@ -150,10 +153,15 @@ int app (struct rpmsg_device *rdev, void *priv)
 			(unsigned long)(2 * sizeof(unsigned long)) + size);
 
 		expect_rnum++;
+		no_try = 0x0;
+
 		do {
 			platform_poll(priv);
-		} while ((rnum < expect_rnum) && !err_cnt && !ept_deleted);
+			no_try++;
 
+		} while ( (no_try <= 10) && (rnum < expect_rnum) && !err_cnt && !ept_deleted);
+
+		usleep(1000000);
 	}
 
 	LPRINTF("**********************************\r\n");
@@ -188,7 +196,7 @@ int main(int argc, char *argv[])
 			ret = -1;
 		} else {
 			app(rpdev, platform);
-			platform_release_rpmsg_vdev(rpdev);
+			platform_release_rpmsg_vdev(rpdev, platform);
 			ret = 0;
 		}
 	}
